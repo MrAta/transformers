@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from functools import partial, wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from zipfile import is_zipfile
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 from packaging import version
@@ -2441,13 +2442,21 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                 os.remove(full_filename)
 
         # Save the model
-        for shard_file, shard in shards.items():
+        def __save_shard(obj, filename):
             if safe_serialization:
-                # At some point we will need to deal better with save_function (used for TPU and other distributed
-                # joyfulness), but for now this enough.
-                safe_save_file(shard, os.path.join(save_directory, shard_file), metadata={"format": "pt"})
+                safe_save_file(obj, filename, metadata={"format": "pt"})
             else:
-                save_function(shard, os.path.join(save_directory, shard_file))
+                save_function(obj, filename)
+
+        max_workers = min(16, len(shards))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            for shard_file, shard in shards.items():
+                future = executor.submit(__save_shard, shard, os.path.join(save_directory, shard_file))
+                futures.append(future)
+
+            for future in futures:
+                future.result()
 
         if index is None:
             path_to_weights = os.path.join(save_directory, weights_name)
