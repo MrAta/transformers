@@ -26,12 +26,12 @@ import re
 import shutil
 import tempfile
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial, wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from zipfile import is_zipfile
-from concurrent.futures import ThreadPoolExecutor
 
 import torch
 from packaging import version
